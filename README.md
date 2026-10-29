@@ -17,7 +17,7 @@ Shell hooks for Windows terminals (Windows Terminal, VS Code, PowerShell, Git Ba
 
 The hooks play the sound through Windows `MediaPlayer`, so they need `powershell.exe`.
 
-Before installing any hook, replace the placeholder `faah_path` inside the hook file with the absolute Windows path to the sound, for example `C:\tools\meme_sound_extension\desktop\media\faaah.wav`.
+Before installing any hook, replace the placeholder `faah_path` inside the hook file with the absolute Windows path to the sound, for example `C:\tools\meme_sound_extension\cli\assets\faaah.wav`.
 
 #### PowerShell (7 and 5.1)
 
@@ -132,8 +132,10 @@ If a burst of failures happens, the sound plays at most once per 4 seconds.
 ## Project layout
 
 ```
+cli/                    faaah CLI (Rust, work in progress)
+  src/                  commands and sound playback
+  assets/faaah.wav      bundled sound
 desktop/
-  media/faaah.wav       bundled sound
   hooks/powershell/     PowerShell profile hook
   hooks/bash/           bash hook
   hooks/cmd/            cmd hook (Clink script + player)

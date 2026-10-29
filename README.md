@@ -4,53 +4,14 @@ Plays a meme sound when something fails:
 
 | Module | Platform | Trigger |
 |---|---|---|
-| [`desktop/`](desktop) | VS Code (Windows, macOS, Linux) + shell hooks (Windows) | A terminal command exits with a non-zero code |
+| [`desktop/`](desktop) | Shell hooks (Windows) | A terminal command exits with a non-zero code |
 | [`mobile/android/`](mobile/android) | Android 8.0+ | Any app crashes or hangs (ANR), or the system fails |
 
 ---
 
 ## Desktop
 
-Two parts. Use one or both: hooks skip VS Code terminals, so the sound never plays twice.
-
-- **VS Code extension "Faaah"** — for terminals inside VS Code.
-- **Shell hooks** — for standalone terminals (Windows Terminal, PowerShell, Git Bash, cmd).
-
-### VS Code extension
-
-Requirements: VS Code 1.93+ with terminal shell integration (on by default for bash, zsh, fish, pwsh).
-
-| OS | Player | Formats |
-|---|---|---|
-| Windows | PowerShell + `System.Windows.Media.MediaPlayer` (built in) | `.wav`, `.mp3` |
-| macOS | `afplay` (built in) | `.wav`, `.mp3` |
-| Linux | `paplay` (PulseAudio / PipeWire, package `pulseaudio-utils`) | `.wav` only |
-
-**Install** — copy the `desktop` folder into the VS Code extensions folder as `local.faaah-0.0.1`, then restart VS Code.
-
-Windows (PowerShell):
-
-```powershell
-Copy-Item -Recurse desktop "$env:USERPROFILE\.vscode\extensions\local.faaah-0.0.1"
-```
-
-macOS / Linux:
-
-```bash
-cp -r desktop ~/.vscode/extensions/local.faaah-0.0.1
-```
-
-Alternative — build a `.vsix` package and install it:
-
-```bash
-cd desktop
-npx @vscode/vsce package
-code --install-extension faaah-0.0.1.vsix
-```
-
-**Check** — open a VS Code terminal and run a failing command, for example `git foo`.
-
-**Custom sound** — set `faaah.soundFile` in VS Code settings to an absolute path of a `.wav` or `.mp3` file. Empty means the bundled `desktop/media/faaah.wav`.
+Shell hooks for Windows terminals (Windows Terminal, VS Code, PowerShell, Git Bash, cmd).
 
 ### Shell hooks (Windows only)
 
@@ -172,8 +133,6 @@ If a burst of failures happens, the sound plays at most once per 4 seconds.
 
 ```
 desktop/
-  extension.js          VS Code extension
-  package.json          extension manifest and settings
   media/faaah.wav       bundled sound
   hooks/powershell/     PowerShell profile hook
   hooks/bash/           bash hook

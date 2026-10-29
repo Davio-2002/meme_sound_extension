@@ -1,5 +1,4 @@
--- faaah: play a sound when a command fails in cmd. Skipped in VS Code terminals, where the Faaah extension plays it.
-if os.getenv("TERM_PROGRAM") == "vscode" then return end
+-- faaah: play a sound when a command fails in cmd.
 
 -- Long-lived PowerShell player (faaah-player.ps1 next to this file), so playing skips process startup.
 local script_dir = debug.getinfo(1, "S").source:match("^@(.*)[\\/]")

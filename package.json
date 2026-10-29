@@ -1,0 +1,26 @@
+{
+  "name": "faaah",
+  "displayName": "Faaah",
+  "description": "Plays \"faaah\" whenever a terminal command fails.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Faaah",
+      "properties": {
+        "faaah.soundFile": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to a .mp3 or .wav file to play instead of the bundled faaah.wav (.mp3 not supported on Linux)."
+        }
+      }
+    }
+  }
+}

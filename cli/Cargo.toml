@@ -1,0 +1,15 @@
+[package]
+name = "faaah"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+dirs = "7"
+rodio = { version = "0.23", default-features = false, features = ["playback", "wav", "mp3"] }
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+
+[dev-dependencies]
+tempfile = "3"

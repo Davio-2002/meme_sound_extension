@@ -1,95 +1,108 @@
-# Meme Sound Extension
+# Faaah
 
-Plays a meme sound when something fails:
+Plays a meme sound when something fails.
 
 | Module | Platform | Trigger |
 |---|---|---|
-| [`desktop/`](desktop) | VS Code (Windows, macOS, Linux) + shell hooks (Windows) | A terminal command exits with a non-zero code |
+| [`cli/`](cli) | Windows, macOS, Linux | A terminal command exits with a non-zero code |
 | [`mobile/android/`](mobile/android) | Android 8.0+ | Any app crashes or hangs (ANR), or the system fails |
 
 ---
 
-## Desktop
+## CLI
 
-Two parts. Use one or both: hooks skip VS Code terminals, so the sound never plays twice.
+`faaah` is a single binary with the sound built in. It plays audio itself, so it needs no external player.
 
-- **VS Code extension "Faaah"** — for terminals inside VS Code.
-- **Shell hooks** — for standalone terminals (Windows Terminal, PowerShell, Git Bash, cmd).
+### Requirements
 
-### VS Code extension
+- [Rust](https://rustup.rs) (stable) to build.
+- Linux: ALSA headers to build (`sudo apt install libasound2-dev` or the package of your distro).
+- bash 4.4+ for the bash hook. macOS ships bash 3.2, so use zsh there or install a newer bash.
+- cmd: [Clink](https://chrisant996.github.io/clink/), because plain cmd has no hooks.
 
-Requirements: VS Code 1.93+ with terminal shell integration (on by default for bash, zsh, fish, pwsh).
+### Install
 
-| OS | Player | Formats |
+```bash
+cargo install --path cli
+faaah install
+faaah test
+```
+
+1. `cargo install` builds `faaah` and puts it into `~/.cargo/bin`, which rustup adds to `PATH`.
+2. `faaah install` adds the hook to every shell it finds: bash, zsh, fish, PowerShell, and cmd with Clink.
+3. `faaah test` plays the sound once, so you know audio works.
+
+Open a new terminal and run a failing command, for example `git foo`.
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `faaah install [shell...]` | Adds the hook to shell configs; without arguments, to every shell found |
+| `faaah uninstall [shell...]` | Removes the hook; without arguments, from every shell |
+| `faaah on` / `faaah off` | Turns the sound on or off, hooks stay in place |
+| `faaah sound <file>` | Uses a `.wav` or `.mp3` file instead of the built-in sound |
+| `faaah sound --reset` | Goes back to the built-in sound |
+| `faaah status` | Shows whether the sound is on, which file plays, which shells have the hook, and where the config is |
+| `faaah test` | Plays the sound and reports an error if audio does not work |
+| `faaah play [--detach]` | Plays the sound; `--detach` returns at once and plays in the background. Used by the hooks |
+| `faaah init <shell>` | Prints the hook for `bash`, `zsh`, `fish`, `powershell` or `cmd` |
+
+### Configuration
+
+`config.toml` in the `faaah` folder of the user config directory: `~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows. `faaah status` prints the exact path.
+
+```toml
+muted = false
+sound = "/home/me/sounds/bruh.mp3"
+ignore_codes = [130, -1073741510]
+```
+
+| Key | Default | Meaning |
 |---|---|---|
-| Windows | PowerShell + `System.Windows.Media.MediaPlayer` (built in) | `.wav`, `.mp3` |
-| macOS | `afplay` (built in) | `.wav`, `.mp3` |
-| Linux | `paplay` (PulseAudio / PipeWire, package `pulseaudio-utils`) | `.wav` only |
+| `muted` | `false` | `true` keeps the hooks silent |
+| `sound` | not set | Sound file; not set means the built-in sound |
+| `ignore_codes` | `[130, -1073741510]` | Exit codes that stay silent. The defaults are Ctrl+C on Unix and on Windows |
 
-**Install** — copy the `desktop` folder into the VS Code extensions folder as `local.faaah-0.0.1`, then restart VS Code.
+### How the hooks work
 
-Windows (PowerShell):
+After each command the hook checks its exit code. If the command really ran and failed, the hook calls `faaah play --detach`, which returns at once, so the prompt does not wait for the sound. An empty Enter does not count.
 
-```powershell
-Copy-Item -Recurse desktop "$env:USERPROFILE\.vscode\extensions\local.faaah-0.0.1"
-```
-
-macOS / Linux:
+`faaah install` adds a marked block to the end of each config file. Running it again changes nothing, and `faaah uninstall` removes only that block:
 
 ```bash
-cp -r desktop ~/.vscode/extensions/local.faaah-0.0.1
+# >>> faaah >>>
+eval "$(faaah init bash)"
+# <<< faaah <<<
 ```
 
-Alternative — build a `.vsix` package and install it:
+To set it up by hand, add the line to the shell config:
+
+| Shell | File | Line |
+|---|---|---|
+| bash 4.4+ | `~/.bashrc` | `eval "$(faaah init bash)"` |
+| zsh | `~/.zshrc` | `eval "$(faaah init zsh)"` |
+| fish | `~/.config/fish/config.fish` | `faaah init fish \| source` |
+| PowerShell 7 and 5.1 | `$PROFILE` (at the end) | `faaah init powershell \| Out-String \| Invoke-Expression` |
+| cmd with Clink | `%LOCALAPPDATA%\clink\faaah.lua` | `load(io.popen("faaah init cmd"):read("*a"))()` |
+
+### Uninstall
 
 ```bash
-cd desktop
-npx @vscode/vsce package
-code --install-extension faaah-0.0.1.vsix
+faaah uninstall
+cargo uninstall faaah
 ```
 
-**Check** — open a VS Code terminal and run a failing command, for example `git foo`.
+### Development
 
-**Custom sound** — set `faaah.soundFile` in VS Code settings to an absolute path of a `.wav` or `.mp3` file. Empty means the bundled `desktop/media/faaah.wav`.
+```bash
+cd cli
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
 
-### Shell hooks (Windows only)
-
-The hooks play the sound through Windows `MediaPlayer`, so they need `powershell.exe`.
-
-Before installing any hook, replace the placeholder `faah_path` inside the hook file with the absolute Windows path to the sound, for example `C:\tools\meme_sound_extension\desktop\media\faaah.wav`.
-
-#### PowerShell (7 and 5.1)
-
-1. Replace `faah_path` in [`desktop/hooks/powershell/faaah.ps1`](desktop/hooks/powershell/faaah.ps1).
-2. Add this line to your profile (open it with `notepad $PROFILE`). Do it for both PowerShell 7 and 5.1 if you use both:
-
-   ```powershell
-   . "C:\path\to\meme_sound_extension\desktop\hooks\powershell\faaah.ps1"
-   ```
-
-3. Open a new window and run a failing command, for example `Get-Item nope`.
-
-#### Bash (Git Bash on Windows)
-
-1. Replace `faah_path` in [`desktop/hooks/bash/faaah.bashrc`](desktop/hooks/bash/faaah.bashrc) with a Windows path (it is opened by `powershell.exe`).
-2. Add this line to `~/.bashrc`:
-
-   ```bash
-   source /c/path/to/meme_sound_extension/desktop/hooks/bash/faaah.bashrc
-   ```
-
-3. Open a new terminal and run `false`.
-
-#### cmd (needs [Clink](https://chrisant996.github.io/clink/))
-
-1. Replace `faah_path` in [`desktop/hooks/cmd/faaah-player.ps1`](desktop/hooks/cmd/faaah-player.ps1).
-2. Register the hooks folder as a Clink scripts folder (`faaah.lua` looks for `faaah-player.ps1` next to itself):
-
-   ```bat
-   clink installscripts "C:\path\to\meme_sound_extension\desktop\hooks\cmd"
-   ```
-
-3. Open a new cmd window and run a failing command, for example `dir nope`.
+The hook syntax tests use `bash`, `zsh`, `fish` and `luac` when they are installed and skip the rest.
 
 ---
 
@@ -171,13 +184,14 @@ If a burst of failures happens, the sound plays at most once per 4 seconds.
 ## Project layout
 
 ```
-desktop/
-  extension.js          VS Code extension
-  package.json          extension manifest and settings
-  media/faaah.wav       bundled sound
-  hooks/powershell/     PowerShell profile hook
-  hooks/bash/           bash hook
-  hooks/cmd/            cmd hook (Clink script + player)
+cli/
+  src/main.rs           commands
+  src/config.rs         config.toml
+  src/sound.rs          sound playback
+  src/hooks.rs          shells and their hooks
+  src/hooks/            hook scripts printed by `faaah init`
+  src/install.rs        adding and removing hooks in shell configs
+  assets/faaah.wav      built-in sound
 mobile/android/
   app/src/main/java/com/crashalert/
     ui/                 screen and ViewModel

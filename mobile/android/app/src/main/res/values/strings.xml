@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Crash Notifier</string>
+    <string name="channel_name">Crash monitoring</string>
+    <string name="notification_title">Watching for app and system crashes</string>
+    <string name="permission_ok">Permissions granted</string>
+    <string name="permission_missing">READ_LOGS / READ_DROPBOX_DATA not granted — monitoring is off</string>
+    <string name="adb_hint">Grant the permissions once from a computer (USB debugging):</string>
+    <string name="adb_command">adb shell pm grant %1$s android.permission.READ_LOGS\nadb shell pm grant %1$s android.permission.READ_DROPBOX_DATA</string>
+    <string name="watch_switch">Play sound on crashes</string>
+    <string name="test_app">Test sound: app crash</string>
+    <string name="test_anr">Test sound: ANR</string>
+    <string name="test_system">Test sound: system failure</string>
+</resources>

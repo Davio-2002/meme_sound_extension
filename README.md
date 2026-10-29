@@ -37,6 +37,8 @@ The binary is `cli/target/release/faaah` (`faaah.exe` on Windows).
 | `faaah on` / `faaah off` | Turns the sound on or off |
 | `faaah status` | Shows whether the sound is on, which file plays, and where the config is |
 | `faaah init <shell>` | Prints the hook for `bash`, `zsh`, `fish`, `powershell` or `cmd` |
+| `faaah install [shell...]` | Adds the hook to shell configs; without arguments, to every shell found |
+| `faaah uninstall [shell...]` | Removes the hook; without arguments, from every shell |
 
 Settings are stored in `config.toml` inside the `faaah` folder of the user config directory: `~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows.
 
@@ -44,7 +46,15 @@ Settings are stored in `config.toml` inside the `faaah` folder of the user confi
 
 ### Shell hooks
 
-Put `faaah` on `PATH`, then add one line to the shell config. The sound plays only after a command that really ran and failed; an empty Enter does not count.
+Put `faaah` on `PATH` and run:
+
+```bash
+faaah install
+```
+
+It finds bash, zsh, fish, PowerShell and cmd with Clink, and adds a marked block to each config file. Running it again changes nothing; `faaah uninstall` removes the block and leaves the rest of the file as it was. The sound plays only after a command that really ran and failed; an empty Enter does not count.
+
+To set it up by hand, add one line to the shell config:
 
 | Shell | File | Line |
 |---|---|---|
@@ -53,8 +63,6 @@ Put `faaah` on `PATH`, then add one line to the shell config. The sound plays on
 | fish | `~/.config/fish/config.fish` | `faaah init fish \| source` |
 | PowerShell 7 and 5.1 | `$PROFILE` (at the end) | `faaah init powershell \| Out-String \| Invoke-Expression` |
 | cmd with [Clink](https://chrisant996.github.io/clink/) | `faaah.lua` in the Clink scripts folder (`clink info` shows it) | `load(io.popen("faaah init cmd"):read("*a"))()` |
-
-Coming next: `faaah install`, which adds these lines by itself.
 
 ### Development
 

@@ -1,13 +1,15 @@
 mod config;
 mod hooks;
+mod install;
 mod sound;
 
 use std::borrow::Cow;
+use std::env;
 use std::fs;
 use std::path::{self, Path, PathBuf};
 
-use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use anyhow::{Context, Result, bail};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use config::Config;
 use hooks::Shell;
@@ -49,6 +51,10 @@ enum Command {
     Status,
     /// Print the shell hook to load from the shell config.
     Init { shell: Shell },
+    /// Add the hook to shell configs; without arguments, to every shell found.
+    Install { shells: Vec<Shell> },
+    /// Remove the hook from shell configs; without arguments, from every shell.
+    Uninstall { shells: Vec<Shell> },
 }
 
 fn main() -> Result<()> {
@@ -69,9 +75,11 @@ fn main() -> Result<()> {
         Command::Off => set_muted(&mut config, true),
         Command::Status => status(&config),
         Command::Init { shell } => {
-            print!("{}", hooks::script(shell));
+            print!("{}", shell.hook());
             Ok(())
         }
+        Command::Install { shells } => install(shells),
+        Command::Uninstall { shells } => uninstall(shells),
     }
 }
 
@@ -124,8 +132,83 @@ fn status(config: &Config) -> Result<()> {
     println!("Sound:  {}", on_off(config.muted));
     println!("File:   {}", sound_label(config));
     println!("Silent: exit codes {:?}", config.ignore_codes);
+    let hooks = installed_hooks();
+    let hooks = if hooks.is_empty() {
+        "none".to_string()
+    } else {
+        hooks.join(", ")
+    };
+    println!("Hooks:  {hooks}");
     println!("Config: {}", Config::path()?.display());
     Ok(())
+}
+
+fn install(shells: Vec<Shell>) -> Result<()> {
+    let shells = if shells.is_empty() {
+        install::detect()
+    } else {
+        shells
+    };
+    if shells.is_empty() {
+        bail!("no supported shell found; name one, for example `faaah install bash`");
+    }
+    for shell in shells {
+        for file in install::config_files(shell)? {
+            let result = if install::add(shell, &file)? {
+                "added to"
+            } else {
+                "already in"
+            };
+            println!("{}: {result} {}", shell.name(), file.display());
+        }
+    }
+    if !install::is_on_path("faaah") {
+        let dir = env::current_exe()?
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default();
+        println!(
+            "Warning: faaah is not on PATH, so the hooks cannot run it. Add {} to PATH.",
+            dir.display()
+        );
+    }
+    println!("Open a new terminal to use it.");
+    Ok(())
+}
+
+fn uninstall(shells: Vec<Shell>) -> Result<()> {
+    let shells = if shells.is_empty() {
+        Shell::value_variants().to_vec()
+    } else {
+        shells
+    };
+    let mut removed_any = false;
+    for shell in shells {
+        let Ok(files) = install::config_files(shell) else {
+            continue;
+        };
+        for file in files {
+            if install::remove(shell, &file)? {
+                println!("{}: removed from {}", shell.name(), file.display());
+                removed_any = true;
+            }
+        }
+    }
+    if !removed_any {
+        println!("Nothing to remove");
+    }
+    Ok(())
+}
+
+fn installed_hooks() -> Vec<&'static str> {
+    Shell::value_variants()
+        .iter()
+        .filter(|&&shell| {
+            install::config_files(shell)
+                .is_ok_and(|files| files.iter().any(|file| install::has_block(shell, file)))
+        })
+        .map(|shell| shell.name())
+        .collect()
 }
 
 fn sound_label(config: &Config) -> String {

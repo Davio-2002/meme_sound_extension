@@ -5,12 +5,27 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+/// Ctrl+C exit codes on Unix and Windows.
+const CTRL_C_EXIT_CODES: [i32; 2] = [130, -1073741510];
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub muted: bool,
     /// Custom sound file; `None` means the built-in sound.
     pub sound: Option<PathBuf>,
+    /// Exit codes that do not play the sound.
+    pub ignore_codes: Vec<i32>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            muted: false,
+            sound: None,
+            ignore_codes: CTRL_C_EXIT_CODES.to_vec(),
+        }
+    }
 }
 
 impl Config {
@@ -64,6 +79,7 @@ mod tests {
         let config = Config {
             muted: true,
             sound: Some(PathBuf::from("/sounds/bruh.mp3")),
+            ignore_codes: vec![1, 2],
         };
         config.write(&path).unwrap();
         assert_eq!(Config::read(&path).unwrap(), config);

@@ -36,10 +36,25 @@ The binary is `cli/target/release/faaah` (`faaah.exe` on Windows).
 | `faaah sound --reset` | Goes back to the built-in sound |
 | `faaah on` / `faaah off` | Turns the sound on or off |
 | `faaah status` | Shows whether the sound is on, which file plays, and where the config is |
+| `faaah init <shell>` | Prints the hook for `bash`, `zsh`, `fish`, `powershell` or `cmd` |
 
 Settings are stored in `config.toml` inside the `faaah` folder of the user config directory: `~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows.
 
-Coming next: `faaah install` for bash, zsh, fish, PowerShell and cmd.
+`ignore_codes` in the config lists exit codes that stay silent. By default it is Ctrl+C: `130` on Unix and `-1073741510` on Windows.
+
+### Shell hooks
+
+Put `faaah` on `PATH`, then add one line to the shell config. The sound plays only after a command that really ran and failed; an empty Enter does not count.
+
+| Shell | File | Line |
+|---|---|---|
+| bash 4.4+ | `~/.bashrc` | `eval "$(faaah init bash)"` |
+| zsh | `~/.zshrc` | `eval "$(faaah init zsh)"` |
+| fish | `~/.config/fish/config.fish` | `faaah init fish \| source` |
+| PowerShell 7 and 5.1 | `$PROFILE` (at the end) | `faaah init powershell \| Out-String \| Invoke-Expression` |
+| cmd with [Clink](https://chrisant996.github.io/clink/) | `faaah.lua` in the Clink scripts folder (`clink info` shows it) | `load(io.popen("faaah init cmd"):read("*a"))()` |
+
+Coming next: `faaah install`, which adds these lines by itself.
 
 ### Development
 
@@ -173,6 +188,7 @@ If a burst of failures happens, the sound plays at most once per 4 seconds.
 ```
 cli/                    faaah CLI (Rust)
   src/                  commands, config, sound playback
+  src/hooks/            shell hooks printed by `faaah init`
   assets/faaah.wav      bundled sound
 desktop/hooks/          legacy Windows hooks (PowerShell, bash, cmd)
 mobile/android/

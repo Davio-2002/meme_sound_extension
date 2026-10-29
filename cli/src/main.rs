@@ -1,4 +1,5 @@
 mod config;
+mod hooks;
 mod sound;
 
 use std::borrow::Cow;
@@ -9,6 +10,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 use config::Config;
+use hooks::Shell;
 
 /// Plays a meme sound when a terminal command fails.
 #[derive(Parser)]
@@ -25,6 +27,9 @@ enum Command {
         /// Return immediately and play in a background process.
         #[arg(long)]
         detach: bool,
+        /// Exit code of the failed command; codes from `ignore_codes` stay silent.
+        #[arg(long)]
+        exit_code: Option<i32>,
     },
     /// Play the sound and report whether audio works.
     Test,
@@ -42,13 +47,15 @@ enum Command {
     Off,
     /// Show the current settings.
     Status,
+    /// Print the shell hook to load from the shell config.
+    Init { shell: Shell },
 }
 
 fn main() -> Result<()> {
     let command = Cli::parse().command;
     let mut config = Config::load()?;
     match command {
-        Command::Play { detach } => play(&config, detach),
+        Command::Play { detach, exit_code } => play(&config, detach, exit_code),
         Command::Test => test(&config),
         Command::Sound {
             file: Some(file), ..
@@ -61,11 +68,16 @@ fn main() -> Result<()> {
         Command::On => set_muted(&mut config, false),
         Command::Off => set_muted(&mut config, true),
         Command::Status => status(&config),
+        Command::Init { shell } => {
+            print!("{}", hooks::script(shell));
+            Ok(())
+        }
     }
 }
 
-fn play(config: &Config, detach: bool) -> Result<()> {
-    if config.muted {
+fn play(config: &Config, detach: bool, exit_code: Option<i32>) -> Result<()> {
+    let ignored = exit_code.is_some_and(|code| config.ignore_codes.contains(&code));
+    if config.muted || ignored {
         return Ok(());
     }
     if detach {
@@ -111,6 +123,7 @@ fn set_muted(config: &mut Config, muted: bool) -> Result<()> {
 fn status(config: &Config) -> Result<()> {
     println!("Sound:  {}", on_off(config.muted));
     println!("File:   {}", sound_label(config));
+    println!("Silent: exit codes {:?}", config.ignore_codes);
     println!("Config: {}", Config::path()?.display());
     Ok(())
 }

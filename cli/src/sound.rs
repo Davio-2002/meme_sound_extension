@@ -1,19 +1,34 @@
+use std::borrow::Cow;
 use std::env;
+use std::fs;
 use std::io::Cursor;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
 use rodio::{Decoder, DeviceSinkBuilder, Player};
 
-pub const BUILT_IN: &[u8] = include_bytes!("../assets/faaah.wav");
+pub type Audio = Cow<'static, [u8]>;
 
-/// Plays WAV or MP3 `audio` on the default output device and waits until it ends.
-pub fn play(audio: &'static [u8]) -> Result<()> {
+const BUILT_IN: &[u8] = include_bytes!("../assets/faaah.wav");
+
+/// Reads the custom sound, or returns the built-in one if `custom` is `None` or unreadable.
+pub fn load(custom: Option<&Path>) -> Audio {
+    custom
+        .and_then(|path| fs::read(path).ok())
+        .map_or(Cow::Borrowed(BUILT_IN), Cow::Owned)
+}
+
+pub fn decode(audio: Audio) -> Result<Decoder<Cursor<Audio>>> {
+    Decoder::new(Cursor::new(audio)).context("not a WAV or MP3 file")
+}
+
+/// Plays `audio` on the default output device and waits until it ends.
+pub fn play(audio: Audio) -> Result<()> {
     let mut device = DeviceSinkBuilder::open_default_sink().context("no audio output device")?;
     device.log_on_drop(false);
-    let decoder = Decoder::new(Cursor::new(audio)).context("unsupported audio format")?;
     let player = Player::connect_new(device.mixer());
-    player.append(decoder);
+    player.append(decode(audio)?);
     player.sleep_until_end();
     Ok(())
 }
@@ -36,6 +51,16 @@ mod tests {
 
     #[test]
     fn built_in_sound_decodes() {
-        assert!(Decoder::new(Cursor::new(BUILT_IN)).is_ok());
+        assert!(decode(load(None)).is_ok());
+    }
+
+    #[test]
+    fn missing_custom_sound_falls_back_to_built_in() {
+        assert_eq!(load(Some(Path::new("/no/such/file.wav"))), BUILT_IN);
+    }
+
+    #[test]
+    fn non_audio_data_is_rejected() {
+        assert!(decode(Cow::Borrowed(b"not audio")).is_err());
     }
 }

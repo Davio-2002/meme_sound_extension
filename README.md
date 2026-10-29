@@ -29,11 +29,17 @@ The binary is `cli/target/release/faaah` (`faaah.exe` on Windows).
 
 | Command | What it does |
 |---|---|
-| `faaah play` | Plays the sound and waits until it ends |
+| `faaah play` | Plays the sound and waits until it ends. Does nothing when the sound is off |
 | `faaah play --detach` | Returns at once, the sound plays in a background process |
 | `faaah test` | Plays the sound and reports an error if audio does not work |
+| `faaah sound <file>` | Uses a `.wav` or `.mp3` file instead of the built-in sound |
+| `faaah sound --reset` | Goes back to the built-in sound |
+| `faaah on` / `faaah off` | Turns the sound on or off |
+| `faaah status` | Shows whether the sound is on, which file plays, and where the config is |
 
-Coming next: custom sound, on/off, status, and `faaah install` for bash, zsh, fish, PowerShell and cmd.
+Settings are stored in `config.toml` inside the `faaah` folder of the user config directory: `~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows.
+
+Coming next: `faaah install` for bash, zsh, fish, PowerShell and cmd.
 
 ### Development
 
@@ -166,7 +172,7 @@ If a burst of failures happens, the sound plays at most once per 4 seconds.
 
 ```
 cli/                    faaah CLI (Rust)
-  src/                  commands and sound playback
+  src/                  commands, config, sound playback
   assets/faaah.wav      bundled sound
 desktop/hooks/          legacy Windows hooks (PowerShell, bash, cmd)
 mobile/android/

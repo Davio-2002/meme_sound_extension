@@ -2,59 +2,81 @@
 
 Plays a meme sound when something fails.
 
-| Module | Platform | Trigger | Status |
-|---|---|---|---|
-| [`cli/`](cli) | Windows, macOS, Linux | A terminal command exits with a non-zero code | In progress |
-| [`desktop/hooks/`](desktop/hooks) | Windows | A terminal command exits with a non-zero code | Legacy, replaced by `cli/` |
-| [`mobile/android/`](mobile/android) | Android 8.0+ | Any app crashes or hangs (ANR), or the system fails | Works |
+| Module | Platform | Trigger |
+|---|---|---|
+| [`cli/`](cli) | Windows, macOS, Linux | A terminal command exits with a non-zero code |
+| [`mobile/android/`](mobile/android) | Android 8.0+ | Any app crashes or hangs (ANR), or the system fails |
 
 ---
 
 ## CLI
 
-A single `faaah` binary with the sound built in. It plays audio itself, so no external player is needed.
+`faaah` is a single binary with the sound built in. It plays audio itself, so it needs no external player.
 
-### Build
+### Requirements
 
-Needs Rust (stable). On Linux also install the ALSA headers, for example `sudo apt install libasound2-dev`.
+- [Rust](https://rustup.rs) (stable) to build.
+- Linux: ALSA headers to build (`sudo apt install libasound2-dev` or the package of your distro).
+- bash 4.4+ for the bash hook. macOS ships bash 3.2, so use zsh there or install a newer bash.
+- cmd: [Clink](https://chrisant996.github.io/clink/), because plain cmd has no hooks.
+
+### Install
 
 ```bash
-cd cli
-cargo build --release
+cargo install --path cli
+faaah install
+faaah test
 ```
 
-The binary is `cli/target/release/faaah` (`faaah.exe` on Windows).
+1. `cargo install` builds `faaah` and puts it into `~/.cargo/bin`, which rustup adds to `PATH`.
+2. `faaah install` adds the hook to every shell it finds: bash, zsh, fish, PowerShell, and cmd with Clink.
+3. `faaah test` plays the sound once, so you know audio works.
+
+Open a new terminal and run a failing command, for example `git foo`.
 
 ### Commands
 
 | Command | What it does |
 |---|---|
-| `faaah play` | Plays the sound and waits until it ends. Does nothing when the sound is off |
-| `faaah play --detach` | Returns at once, the sound plays in a background process |
-| `faaah test` | Plays the sound and reports an error if audio does not work |
-| `faaah sound <file>` | Uses a `.wav` or `.mp3` file instead of the built-in sound |
-| `faaah sound --reset` | Goes back to the built-in sound |
-| `faaah on` / `faaah off` | Turns the sound on or off |
-| `faaah status` | Shows whether the sound is on, which file plays, and where the config is |
-| `faaah init <shell>` | Prints the hook for `bash`, `zsh`, `fish`, `powershell` or `cmd` |
 | `faaah install [shell...]` | Adds the hook to shell configs; without arguments, to every shell found |
 | `faaah uninstall [shell...]` | Removes the hook; without arguments, from every shell |
+| `faaah on` / `faaah off` | Turns the sound on or off, hooks stay in place |
+| `faaah sound <file>` | Uses a `.wav` or `.mp3` file instead of the built-in sound |
+| `faaah sound --reset` | Goes back to the built-in sound |
+| `faaah status` | Shows whether the sound is on, which file plays, which shells have the hook, and where the config is |
+| `faaah test` | Plays the sound and reports an error if audio does not work |
+| `faaah play [--detach]` | Plays the sound; `--detach` returns at once and plays in the background. Used by the hooks |
+| `faaah init <shell>` | Prints the hook for `bash`, `zsh`, `fish`, `powershell` or `cmd` |
 
-Settings are stored in `config.toml` inside the `faaah` folder of the user config directory: `~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows.
+### Configuration
 
-`ignore_codes` in the config lists exit codes that stay silent. By default it is Ctrl+C: `130` on Unix and `-1073741510` on Windows.
+`config.toml` in the `faaah` folder of the user config directory: `~/.config` on Linux, `~/Library/Application Support` on macOS, `%APPDATA%` on Windows. `faaah status` prints the exact path.
 
-### Shell hooks
-
-Put `faaah` on `PATH` and run:
-
-```bash
-faaah install
+```toml
+muted = false
+sound = "/home/me/sounds/bruh.mp3"
+ignore_codes = [130, -1073741510]
 ```
 
-It finds bash, zsh, fish, PowerShell and cmd with Clink, and adds a marked block to each config file. Running it again changes nothing; `faaah uninstall` removes the block and leaves the rest of the file as it was. The sound plays only after a command that really ran and failed; an empty Enter does not count.
+| Key | Default | Meaning |
+|---|---|---|
+| `muted` | `false` | `true` keeps the hooks silent |
+| `sound` | not set | Sound file; not set means the built-in sound |
+| `ignore_codes` | `[130, -1073741510]` | Exit codes that stay silent. The defaults are Ctrl+C on Unix and on Windows |
 
-To set it up by hand, add one line to the shell config:
+### How the hooks work
+
+After each command the hook checks its exit code. If the command really ran and failed, the hook calls `faaah play --detach`, which returns at once, so the prompt does not wait for the sound. An empty Enter does not count.
+
+`faaah install` adds a marked block to the end of each config file. Running it again changes nothing, and `faaah uninstall` removes only that block:
+
+```bash
+# >>> faaah >>>
+eval "$(faaah init bash)"
+# <<< faaah <<<
+```
+
+To set it up by hand, add the line to the shell config:
 
 | Shell | File | Line |
 |---|---|---|
@@ -62,7 +84,14 @@ To set it up by hand, add one line to the shell config:
 | zsh | `~/.zshrc` | `eval "$(faaah init zsh)"` |
 | fish | `~/.config/fish/config.fish` | `faaah init fish \| source` |
 | PowerShell 7 and 5.1 | `$PROFILE` (at the end) | `faaah init powershell \| Out-String \| Invoke-Expression` |
-| cmd with [Clink](https://chrisant996.github.io/clink/) | `faaah.lua` in the Clink scripts folder (`clink info` shows it) | `load(io.popen("faaah init cmd"):read("*a"))()` |
+| cmd with Clink | `%LOCALAPPDATA%\clink\faaah.lua` | `load(io.popen("faaah init cmd"):read("*a"))()` |
+
+### Uninstall
+
+```bash
+faaah uninstall
+cargo uninstall faaah
+```
 
 ### Development
 
@@ -73,46 +102,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
----
-
-## Shell hooks (Windows, legacy)
-
-Manual setup until `faaah install` is ready. The hooks play the sound through Windows `MediaPlayer`, so they need `powershell.exe`.
-
-Before installing any hook, replace the placeholder `faah_path` inside the hook file with the absolute Windows path to the sound, for example `C:\tools\meme_sound_extension\cli\assets\faaah.wav`.
-
-### PowerShell (7 and 5.1)
-
-1. Replace `faah_path` in [`desktop/hooks/powershell/faaah.ps1`](desktop/hooks/powershell/faaah.ps1).
-2. Add this line to your profile (open it with `notepad $PROFILE`). Do it for both PowerShell 7 and 5.1 if you use both:
-
-   ```powershell
-   . "C:\path\to\meme_sound_extension\desktop\hooks\powershell\faaah.ps1"
-   ```
-
-3. Open a new window and run a failing command, for example `Get-Item nope`.
-
-### Bash (Git Bash on Windows)
-
-1. Replace `faah_path` in [`desktop/hooks/bash/faaah.bashrc`](desktop/hooks/bash/faaah.bashrc) with a Windows path (it is opened by `powershell.exe`).
-2. Add this line to `~/.bashrc`:
-
-   ```bash
-   source /c/path/to/meme_sound_extension/desktop/hooks/bash/faaah.bashrc
-   ```
-
-3. Open a new terminal and run `false`.
-
-### cmd (needs [Clink](https://chrisant996.github.io/clink/))
-
-1. Replace `faah_path` in [`desktop/hooks/cmd/faaah-player.ps1`](desktop/hooks/cmd/faaah-player.ps1).
-2. Register the hooks folder as a Clink scripts folder (`faaah.lua` looks for `faaah-player.ps1` next to itself):
-
-   ```bat
-   clink installscripts "C:\path\to\meme_sound_extension\desktop\hooks\cmd"
-   ```
-
-3. Open a new cmd window and run a failing command, for example `dir nope`.
+The hook syntax tests use `bash`, `zsh`, `fish` and `luac` when they are installed and skip the rest.
 
 ---
 
@@ -194,11 +184,14 @@ If a burst of failures happens, the sound plays at most once per 4 seconds.
 ## Project layout
 
 ```
-cli/                    faaah CLI (Rust)
-  src/                  commands, config, sound playback
-  src/hooks/            shell hooks printed by `faaah init`
-  assets/faaah.wav      bundled sound
-desktop/hooks/          legacy Windows hooks (PowerShell, bash, cmd)
+cli/
+  src/main.rs           commands
+  src/config.rs         config.toml
+  src/sound.rs          sound playback
+  src/hooks.rs          shells and their hooks
+  src/hooks/            hook scripts printed by `faaah init`
+  src/install.rs        adding and removing hooks in shell configs
+  assets/faaah.wav      built-in sound
 mobile/android/
   app/src/main/java/com/crashalert/
     ui/                 screen and ViewModel

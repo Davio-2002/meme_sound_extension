@@ -3,7 +3,7 @@
 if ($env:TERM_PROGRAM -ne 'vscode') {
     Add-Type -AssemblyName PresentationCore
     $global:FaaahPlayer = New-Object System.Windows.Media.MediaPlayer
-    $global:FaaahPlayer.Open([uri]'C:\Users\Khachatryan.Davit.PROTELION\Downloads\meme-sound-effect-trimmed.wav')
+    $global:FaaahPlayer.Open([uri]'faah_path')
     $global:FaaahLastId = (Get-History -Count 1).Id
     $global:FaaahPrompt = $function:prompt
 

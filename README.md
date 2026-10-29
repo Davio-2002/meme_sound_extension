@@ -1,25 +1,58 @@
-# Meme Sound Extension
+# Faaah
 
-Plays a meme sound when something fails:
+Plays a meme sound when something fails.
 
-| Module | Platform | Trigger |
-|---|---|---|
-| [`desktop/`](desktop) | Shell hooks (Windows) | A terminal command exits with a non-zero code |
-| [`mobile/android/`](mobile/android) | Android 8.0+ | Any app crashes or hangs (ANR), or the system fails |
+| Module | Platform | Trigger | Status |
+|---|---|---|---|
+| [`cli/`](cli) | Windows, macOS, Linux | A terminal command exits with a non-zero code | In progress |
+| [`desktop/hooks/`](desktop/hooks) | Windows | A terminal command exits with a non-zero code | Legacy, replaced by `cli/` |
+| [`mobile/android/`](mobile/android) | Android 8.0+ | Any app crashes or hangs (ANR), or the system fails | Works |
 
 ---
 
-## Desktop
+## CLI
 
-Shell hooks for Windows terminals (Windows Terminal, VS Code, PowerShell, Git Bash, cmd).
+A single `faaah` binary with the sound built in. It plays audio itself, so no external player is needed.
 
-### Shell hooks (Windows only)
+### Build
 
-The hooks play the sound through Windows `MediaPlayer`, so they need `powershell.exe`.
+Needs Rust (stable). On Linux also install the ALSA headers, for example `sudo apt install libasound2-dev`.
+
+```bash
+cd cli
+cargo build --release
+```
+
+The binary is `cli/target/release/faaah` (`faaah.exe` on Windows).
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `faaah play` | Plays the sound and waits until it ends |
+| `faaah play --detach` | Returns at once, the sound plays in a background process |
+| `faaah test` | Plays the sound and reports an error if audio does not work |
+
+Coming next: custom sound, on/off, status, and `faaah install` for bash, zsh, fish, PowerShell and cmd.
+
+### Development
+
+```bash
+cd cli
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+---
+
+## Shell hooks (Windows, legacy)
+
+Manual setup until `faaah install` is ready. The hooks play the sound through Windows `MediaPlayer`, so they need `powershell.exe`.
 
 Before installing any hook, replace the placeholder `faah_path` inside the hook file with the absolute Windows path to the sound, for example `C:\tools\meme_sound_extension\cli\assets\faaah.wav`.
 
-#### PowerShell (7 and 5.1)
+### PowerShell (7 and 5.1)
 
 1. Replace `faah_path` in [`desktop/hooks/powershell/faaah.ps1`](desktop/hooks/powershell/faaah.ps1).
 2. Add this line to your profile (open it with `notepad $PROFILE`). Do it for both PowerShell 7 and 5.1 if you use both:
@@ -30,7 +63,7 @@ Before installing any hook, replace the placeholder `faah_path` inside the hook 
 
 3. Open a new window and run a failing command, for example `Get-Item nope`.
 
-#### Bash (Git Bash on Windows)
+### Bash (Git Bash on Windows)
 
 1. Replace `faah_path` in [`desktop/hooks/bash/faaah.bashrc`](desktop/hooks/bash/faaah.bashrc) with a Windows path (it is opened by `powershell.exe`).
 2. Add this line to `~/.bashrc`:
@@ -41,7 +74,7 @@ Before installing any hook, replace the placeholder `faah_path` inside the hook 
 
 3. Open a new terminal and run `false`.
 
-#### cmd (needs [Clink](https://chrisant996.github.io/clink/))
+### cmd (needs [Clink](https://chrisant996.github.io/clink/))
 
 1. Replace `faah_path` in [`desktop/hooks/cmd/faaah-player.ps1`](desktop/hooks/cmd/faaah-player.ps1).
 2. Register the hooks folder as a Clink scripts folder (`faaah.lua` looks for `faaah-player.ps1` next to itself):
@@ -132,13 +165,10 @@ If a burst of failures happens, the sound plays at most once per 4 seconds.
 ## Project layout
 
 ```
-cli/                    faaah CLI (Rust, work in progress)
+cli/                    faaah CLI (Rust)
   src/                  commands and sound playback
   assets/faaah.wav      bundled sound
-desktop/
-  hooks/powershell/     PowerShell profile hook
-  hooks/bash/           bash hook
-  hooks/cmd/            cmd hook (Clink script + player)
+desktop/hooks/          legacy Windows hooks (PowerShell, bash, cmd)
 mobile/android/
   app/src/main/java/com/crashalert/
     ui/                 screen and ViewModel

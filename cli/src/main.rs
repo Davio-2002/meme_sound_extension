@@ -1,6 +1,7 @@
 mod config;
 mod hooks;
 mod install;
+mod library;
 mod mascot;
 mod sound;
 mod ui;
@@ -8,7 +9,7 @@ mod ui;
 use std::borrow::Cow;
 use std::env;
 use std::fs;
-use std::path::{self, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::thread;
 use std::time::Duration;
@@ -36,13 +37,10 @@ struct Cli {
 enum Command {
     /// Play the sound and report whether audio works.
     Test,
-    /// Show or change the sound.
+    /// List saved sounds, or save and pick the one that plays on failures.
     Sound {
-        /// WAV or MP3 file to play instead of the built-in sound.
-        file: Option<PathBuf>,
-        /// Go back to the built-in sound.
-        #[arg(long, conflicts_with = "file")]
-        reset: bool,
+        #[command(subcommand)]
+        action: Option<SoundAction>,
     },
     /// Turn the sound on.
     On,
@@ -65,6 +63,21 @@ enum Command {
         #[arg(long)]
         exit_code: Option<i32>,
     },
+}
+
+#[derive(Subcommand)]
+enum SoundAction {
+    /// Save a copy of a WAV or MP3 file and play it on failures.
+    Add {
+        file: PathBuf,
+        /// Name to save it under; the file name by default.
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Play a built-in or saved sound on failures.
+    Use { name: String },
+    /// Delete a saved sound.
+    Remove { name: String },
 }
 
 fn main() -> ExitCode {
@@ -95,14 +108,16 @@ fn run(command: Command) -> Result<()> {
     match command {
         Command::Play { detach, exit_code } => play(&config, detach, exit_code),
         Command::Test => test(&config),
+        Command::Sound { action: None } => list_sounds(&config),
         Command::Sound {
-            file: Some(file), ..
-        } => set_sound(&mut config, &file),
-        Command::Sound { reset: true, .. } => reset_sound(&mut config),
-        Command::Sound { .. } => {
-            println!("{}", sound_label(&config));
-            Ok(())
-        }
+            action: Some(SoundAction::Add { file, name }),
+        } => add_sound(&mut config, &file, name.as_deref()),
+        Command::Sound {
+            action: Some(SoundAction::Use { name }),
+        } => use_sound(&mut config, &name),
+        Command::Sound {
+            action: Some(SoundAction::Remove { name }),
+        } => remove_sound(&mut config, &name),
         Command::On => set_muted(&mut config, false),
         Command::Off => set_muted(&mut config, true),
         Command::Status => status(&config),
@@ -123,7 +138,7 @@ fn play(config: &Config, detach: bool, exit_code: Option<i32>) -> Result<()> {
     if detach {
         return sound::play_in_background();
     }
-    sound::play(sound::load(config.sound.as_deref()))
+    sound::play_alone(sound::load(&config.sound))
 }
 
 fn test(config: &Config) -> Result<()> {
@@ -133,7 +148,7 @@ fn test(config: &Config) -> Result<()> {
         "✓",
         "done. Heard nothing? Check your output device and volume.",
     );
-    let audio = sound::load(config.sound.as_deref());
+    let audio = sound::load(&config.sound);
     if ui::fancy() {
         race(sound::start(audio)?, &playing, &done);
     } else {
@@ -170,24 +185,67 @@ fn race(playback: sound::Playback, playing: &str, done: &str) {
     }
 }
 
-fn set_sound(config: &mut Config, file: &Path) -> Result<()> {
-    let file = path::absolute(file)?;
-    let audio = fs::read(&file).with_context(|| format!("can’t read {}", ui::path(&file)))?;
+fn list_sounds(config: &Config) -> Result<()> {
+    let saved = library::list(&library::dir()?)?;
+    let current = sound_label(config);
+    println!("{}\n", ui::paint(AMBER.bold(), "♪ sounds"));
+    let names = sound::BUILT_INS
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(saved.iter().map(|s| s.name.as_str()));
+    let mut current_listed = false;
+    for name in names {
+        if name == current {
+            current_listed = true;
+            println!("   {} {name}", ui::paint(SAGE, "●"));
+        } else {
+            println!("   {} {}", ui::paint(ASH, "·"), ui::paint(ASH, name));
+        }
+    }
+    if !current_listed {
+        println!("   {} {current}", ui::paint(SAGE, "●"));
+    }
+    println!();
+    ui::hint("pick one with `faaah sound use <name>` · save one with `faaah sound add <file>`");
+    Ok(())
+}
+
+fn add_sound(config: &mut Config, file: &Path, name: Option<&str>) -> Result<()> {
+    let audio = fs::read(file).with_context(|| format!("can’t read {}", ui::path(file)))?;
     sound::decode(Cow::Owned(audio))?;
-    config.sound = Some(file);
+    let saved = library::add(&library::dir()?, file, name)?;
+    config.sound = saved.path;
     config.save()?;
     ui::line(
         SAGE,
         "✓",
-        &format!("sound set to {}", ui::paint(ASH, &sound_label(config))),
+        &format!("saved {} and playing it on failures", saved.name),
     );
     Ok(())
 }
 
-fn reset_sound(config: &mut Config) -> Result<()> {
-    config.sound = None;
+fn use_sound(config: &mut Config, name: &str) -> Result<()> {
+    config.sound = if sound::built_in(name).is_some() {
+        PathBuf::from(name)
+    } else {
+        library::find(&library::dir()?, name)?.path
+    };
     config.save()?;
-    ui::line(SAGE, "✓", "sound set to the built-in one");
+    ui::line(SAGE, "✓", &format!("playing {name} on failures"));
+    Ok(())
+}
+
+fn remove_sound(config: &mut Config, name: &str) -> Result<()> {
+    let removed = library::remove(&library::dir()?, name)?;
+    ui::line(SAGE, "✓", &format!("deleted {name}"));
+    if config.sound == removed.path {
+        config.sound = PathBuf::from(sound::DEFAULT);
+        config.save()?;
+        ui::hint(&format!(
+            "it was the current sound, so {} plays now",
+            sound::DEFAULT
+        ));
+    }
     Ok(())
 }
 
@@ -332,10 +390,18 @@ fn installed_hooks() -> Vec<&'static str> {
         .collect()
 }
 
+/// Name of a built-in or saved sound, or the path of a file set by hand in the config.
 fn sound_label(config: &Config) -> String {
-    match &config.sound {
-        None => "built-in".into(),
-        Some(path) if path.is_file() => ui::path(path),
-        Some(path) => format!("{} (missing, using built-in)", ui::path(path)),
+    let path = &config.sound;
+    if let Some(name) = path.to_str().filter(|name| sound::built_in(name).is_some()) {
+        return name.into();
+    }
+    if !path.is_file() {
+        return format!("{} (missing, using {})", ui::path(path), sound::DEFAULT);
+    }
+    let saved = library::dir().is_ok_and(|dir| path.parent() == Some(dir.as_path()));
+    match path.file_stem().and_then(|stem| stem.to_str()) {
+        Some(name) if saved => name.into(),
+        _ => ui::path(path),
     }
 }

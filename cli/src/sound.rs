@@ -111,10 +111,33 @@ pub fn play_in_background() -> Result<()> {
             DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
         );
     }
+    #[cfg(windows)]
+    stop_inheriting_stdio();
     command
         .spawn()
         .context("failed to start the background player")?;
     Ok(())
+}
+
+/// `Command` passes every inheritable handle to the child, even with null stdio, so the player
+/// would keep a shell's output pipe open and the shell would wait for the sound to end.
+#[cfg(windows)]
+fn stop_inheriting_stdio() {
+    use std::io::{stderr, stdin, stdout};
+    use std::os::windows::io::{AsRawHandle, RawHandle};
+
+    const HANDLE_FLAG_INHERIT: u32 = 1;
+    unsafe extern "system" {
+        fn SetHandleInformation(handle: RawHandle, mask: u32, flags: u32) -> i32;
+    }
+    for handle in [
+        stdin().as_raw_handle(),
+        stdout().as_raw_handle(),
+        stderr().as_raw_handle(),
+    ] {
+        // Fails only for handles that cannot be inherited anyway, such as console ones.
+        unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0) };
+    }
 }
 
 #[cfg(test)]
